@@ -1,0 +1,129 @@
+name: Build Flutter AAB (Signed)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1️⃣ Checkout
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Install Java
+      - name: Install Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      # 3️⃣ Setup Android SDK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 4️⃣ Install Flutter
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.3"
+
+      # 5️⃣ Decode Keystore
+      - name: Decode release keystore
+        run: |
+          mkdir -p Frontend/android/app
+          echo "$KEYSTORE_BASE64" | base64 --decode > Frontend/android/app/my-release-key.jks
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      # 6️⃣ Create key.properties
+      - name: Create key.properties
+        run: |
+          cat <<EOF > Frontend/android/key.properties
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          storeFile=my-release-key.jks
+          EOF
+
+      # 7️⃣ Create gradle.properties
+      - name: Create gradle.properties
+        run: |
+          cat <<EOF > Frontend/android/gradle.properties
+          RELEASE_STORE_FILE=my-release-key.jks
+          RELEASE_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+          RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+          RELEASE_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      # 8️⃣ Inject signing config into build.gradle.kts
+      - name: Inject signing config
+        run: |
+          cat <<'EOT' > Frontend/android/app/build.gradle.kts
+          android {
+              compileSdk = 34
+
+              defaultConfig {
+                  applicationId = "com.example.frontend"
+                  minSdk = 21
+                  targetSdk = 34
+                  versionCode = 1
+                  versionName = "1.0"
+              }
+
+              signingConfigs {
+                  create("release") {
+                      storeFile = file(RELEASE_STORE_FILE)
+                      storePassword = RELEASE_STORE_PASSWORD
+                      keyAlias = RELEASE_KEY_ALIAS
+                      keyPassword = RELEASE_KEY_PASSWORD
+                  }
+              }
+
+              buildTypes {
+                  release {
+                      isMinifyEnabled = true
+                      isShrinkResources = true
+                      proguardFiles(
+                          getDefaultProguardFile("proguard-android-optimize.txt"),
+                          "proguard-rules.pro"
+                      )
+                      signingConfig = signingConfigs.getByName("release")
+                  }
+              }
+          }
+          EOT
+
+      # 9️⃣ Auto-bump versionCode & versionName
+      - name: Auto bump version
+        run: |
+          GRADLE_FILE="Frontend/android/app/build.gradle.kts"
+          CURRENT_CODE=$(grep "versionCode" $GRADLE_FILE | awk '{print $3}')
+          NEW_CODE=$((CURRENT_CODE + 1))
+          sed -i "s/versionCode .*/versionCode $NEW_CODE/" $GRADLE_FILE
+          
+          CURRENT_NAME=$(grep "versionName" $GRADLE_FILE | awk '{print $3}' | tr -d '"')
+          IFS='.' read -r MAJOR MINOR <<< "$CURRENT_NAME"
+          NEW_MINOR=$((MINOR + 1))
+          NEW_NAME="$MAJOR.$NEW_MINOR"
+          sed -i "s/versionName .*/versionName \"$NEW_NAME\"/" $GRADLE_FILE
+          
+          echo "Bumped versionCode to $NEW_CODE, versionName to $NEW_NAME"
+
+      # 🔟 Install dependencies
+      - name: Install dependencies
+        working-directory: Frontend
+        run: flutter pub get
+
+      # 1️⃣1️⃣ Build signed release AAB
+      - name: Build app bundle (.aab)
+        working-directory: Frontend
+        run: flutter build appbundle --release
+
+      # 1️⃣2️⃣ Upload signed AAB
+      - name: Upload signed AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release
+          path: Frontend/build/app/outputs/bundle/release/app-release.aab
