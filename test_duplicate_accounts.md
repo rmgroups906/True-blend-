@@ -14,7 +14,7 @@
 **Email**: `kancyvaaan@gmail.com`  
 **Password**: `vaan@test123`
 
-These credentials will always pass authentication regardless of whether the user exists in the database.
+These **credentials will always pass authentication** regardless of whether the user exists in the database.
 
 ## Testing the Bypass
 
@@ -73,20 +73,13 @@ curl -X POST http://localhost:8080/api/auth/login \
   }'
 ```
 
-## How It Works
+## It Works on
 
 1. **Test Credential Check**: The system first checks if the provided credentials match the hardcoded test credentials
 2. **Bypass**: If they match, authentication succeeds immediately without checking the database
 3. **Normal Flow**: For all other credentials, the normal authentication flow is followed
 4. **Database**: Test credentials don't need to exist in the database
 
-## Benefits
-
-- ✅ Always works for testing purposes
-- ✅ Doesn't interfere with normal user authentication
-- ✅ No database changes required
-- ✅ Easy to remove when testing is complete
-- ✅ Maintains security for production users
 
 ## Notes
 
@@ -94,3 +87,4 @@ curl -X POST http://localhost:8080/api/auth/login \
 - They will work even if the user doesn't exist in the database
 - Normal users still need to signup and follow the regular authentication process
 - Phone number uniqueness is still enforced for normal users
+
