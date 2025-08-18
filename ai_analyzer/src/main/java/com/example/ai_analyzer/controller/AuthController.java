@@ -7,9 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
-import java.util.Map;
-
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -37,68 +34,21 @@ public class AuthController {
         return ResponseEntity.ok(message);
     }
 
-    // Send OTP
+    // ➕ NEW: Send OTP
     @PostMapping("/send-otp")
-    public ResponseEntity<Map<String, Object>> sendOtp(@RequestBody OtpRequest request) {
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            if (request.getPhoneNumber() == null || request.getPhoneNumber().trim().isEmpty()) {
-                response.put("success", false);
-                response.put("message", "Phone number is required");
-                return ResponseEntity.badRequest().body(response);
-            }
-            
-            String otp = otpService.generateOtp(request.getPhoneNumber());
-            response.put("success", true);
-            response.put("message", "OTP sent successfully");
-            response.put("otp", otp); // Remove this in production - only for testing
-            
-            return ResponseEntity.ok(response);
-        } catch (RuntimeException e) {
-            response.put("success", false);
-            response.put("message", e.getMessage());
-            return ResponseEntity.badRequest().body(response);
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Failed to send OTP. Please try again.");
-            return ResponseEntity.internalServerError().body(response);
-        }
+    public ResponseEntity<String> sendOtp(@RequestBody OtpRequest request) {
+        otpService.generateOtp(request.getPhoneNumber());
+        return ResponseEntity.ok("OTP sent successfully");
     }
 
-    // Verify OTP
+    // ➕ NEW: Verify OTP
     @PostMapping("/verify-otp")
-    public ResponseEntity<Map<String, Object>> verifyOtp(@RequestBody OtpRequest request) {
-        Map<String, Object> response = new HashMap<>();
-        
-        try {
-            if (request.getPhoneNumber() == null || request.getPhoneNumber().trim().isEmpty()) {
-                response.put("success", false);
-                response.put("message", "Phone number is required");
-                return ResponseEntity.badRequest().body(response);
-            }
-            
-            if (request.getOtp() == null || request.getOtp().trim().isEmpty()) {
-                response.put("success", false);
-                response.put("message", "OTP is required");
-                return ResponseEntity.badRequest().body(response);
-            }
-            
-            boolean isValid = otpService.verifyOtp(request.getPhoneNumber(), request.getOtp());
-            
-            if (isValid) {
-                response.put("success", true);
-                response.put("message", "OTP verified successfully");
-                return ResponseEntity.ok(response);
-            } else {
-                response.put("success", false);
-                response.put("message", "Invalid or expired OTP");
-                return ResponseEntity.badRequest().body(response);
-            }
-        } catch (Exception e) {
-            response.put("success", false);
-            response.put("message", "Failed to verify OTP. Please try again.");
-            return ResponseEntity.internalServerError().body(response);
+    public ResponseEntity<String> verifyOtp(@RequestBody OtpRequest request) {
+        boolean isValid = otpService.verifyOtp(request.getPhoneNumber(), request.getOtp());
+        if (isValid) {
+            return ResponseEntity.ok("OTP verified successfully");
+        } else {
+            return ResponseEntity.badRequest().body("Invalid OTP");
         }
     }
 }

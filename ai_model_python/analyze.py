@@ -6,10 +6,11 @@ from dotenv import load_dotenv
 import easyocr
 from requests.exceptions import RequestException
 import google.generativeai as genai
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.responses import JSONResponse
+import uvicorn
 
-
-app = Flask(__name__)
+app = FastAPI(title="AI Health Analyzer", version="1.0.0")
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 
@@ -61,22 +62,21 @@ def main(img):
     evaluations = evaluate_ingredient(ingredients)
     return evaluations
 
-@app.route('/analyze', methods=['POST'])
-def upload_image():
-    if 'image' not in request.files:
-        return jsonify({'error': 'No image part in the request'}), 400
-
-    file = request.files['image']
-
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-
+@app.post("/analyze")
+async def analyze_image(image: UploadFile = File(...)):
+    if not image.filename:
+        raise HTTPException(status_code=400, detail="No file selected")
+    
     try:
-        result = main(file)
-        return jsonify(result)
+        result = main(image.file)
+        return JSONResponse(content=result)
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "AI Health Analyzer"}
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    uvicorn.run(app, host='0.0.0.0', port=5000)
     
